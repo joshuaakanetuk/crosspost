@@ -8,13 +8,13 @@ import {
     useReactTable,
     ColumnDef,
     SortingState,
-    ColumnFiltersState,
+    ColumnFiltersState, 
   } from '@tanstack/react-table'
-  import { useState, useMemo } from 'react'
+  import { useState, useMemo, ReactNode } from 'react'
   
 
 export interface TableData {
-  id: string | number
+  id?: string | number
   [key: string]: any
 }
 
@@ -32,6 +32,7 @@ export interface TableColumn<T extends TableData> {
   type?: 'default' | 'checkbox'
   checkboxProps?: {
     disabled?: (item: T) => boolean
+    checked?: (item: T) => boolean
     onChange?: (item: T, checked: boolean) => void
   }
 }
@@ -76,7 +77,7 @@ export interface TableProps<T extends TableData> {
     const tableColumns = useMemo<ColumnDef<T>[]>(() => {
       return columns.map((col) => ({
         id: String(col.key),
-        accessorFn: col.accessor || ((item: T) => item[col.key]),
+        accessorFn: col.accessor || (col.type === 'checkbox' ? () => null : ((item: T) => item[col.key])),
         enableSorting: col.sortable !== false && enableSorting,
         enableColumnFilter: col.filterable && enableFiltering,
         size: col.width,
@@ -87,19 +88,32 @@ export interface TableProps<T extends TableData> {
 
           if (column?.type === 'checkbox') {
             const isDisabled = column.checkboxProps?.disabled?.(row.original) ?? false
+            const isChecked = column.checkboxProps?.checked?.(row.original) ?? false
             return (
-              <input
-                type="checkbox"
-                disabled={isDisabled}
-                onChange={(e) => column.checkboxProps?.onChange?.(row.original, e.target.checked)}
-                className="h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300 rounded"
-              />
+              <div onClick={(e) => {
+                e.stopPropagation()
+              }}>
+                <input
+                  type="checkbox"
+                  checked={isChecked}
+                  disabled={isDisabled}
+                  onClick={(e) => {
+                    e.stopPropagation()
+                  }}
+                  onChange={(e) => {
+                    e.stopPropagation()
+                    e.preventDefault()
+                    column.checkboxProps?.onChange?.(row.original, e.target.checked)
+                  }}
+                  className="h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300 rounded cursor-pointer"
+                />
+              </div>
             )
           }
 
           return (
             <div className={typeof cellClassName === 'function' ? cellClassName(row.original) : cellClassName}>
-              {value !== null && value !== undefined ? String(value) : ''}
+              {value as ReactNode}
             </div>
           )
         },
@@ -121,6 +135,7 @@ export interface TableProps<T extends TableData> {
       getSortedRowModel: enableSorting ? getSortedRowModel() : undefined,
       getFilteredRowModel: enableFiltering ? getFilteredRowModel() : undefined,
       getPaginationRowModel: enablePagination ? getPaginationRowModel() : undefined,
+      getRowId: (row) => row.id?.toString() || Math.random().toString(),
       state: {
         sorting,
         columnFilters,
@@ -205,21 +220,29 @@ export interface TableProps<T extends TableData> {
                       onClick={() => onRowClick?.(row.original)}
                       {...rowProps}
                     >
-                      {row.getVisibleCells().map((cell) => (
-                        <td
-                          key={cell.id}
-                          className={`px-6 py-4 whitespace-nowrap text-sm text-gray-900 ${(() => {
-                            const column = columns.find(col => String(col.key) === cell.column.id)
-                            const cellClassName = column?.cellClassName
-                            if (typeof cellClassName === 'function') {
-                              return cellClassName(row.original)
-                            }
-                            return cellClassName || ''
-                          })()}`}
-                        >
-                          {flexRender(cell.column.columnDef.cell, cell.getContext())}
-                        </td>
-                      ))}
+                      {row.getVisibleCells().map((cell) => {
+                        const column = columns.find(col => String(col.key) === cell.column.id)
+                        const isCheckboxCell = column?.type === 'checkbox'
+                        return (
+                          <td
+                            key={cell.id}
+                            className={`px-6 py-4 whitespace-nowrap text-sm text-gray-900 ${(() => {
+                              const cellClassName = column?.cellClassName
+                              if (typeof cellClassName === 'function') {
+                                return cellClassName(row.original)
+                              }
+                              return cellClassName || ''
+                            })()}`}
+                            onClick={(e) => {
+                              if (isCheckboxCell) {
+                                e.stopPropagation()
+                              }
+                            }}
+                          >
+                            {flexRender(cell.column.columnDef.cell, cell.getContext())}
+                          </td>
+                        )
+                      })}
                     </tr>
                   )
                 })

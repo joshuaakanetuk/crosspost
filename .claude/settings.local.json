@@ -1,0 +1,10 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(npx prisma:*)",
+      "WebFetch(domain:developer.ebay.com)"
+    ],
+    "deny": [],
+    "ask": []
+  }
+}

@@ -9,12 +9,20 @@ import { useEffect, useRef, useState } from "react";
  *
  * TailwindCSS required in your app. Uses native getUserMedia.
  */
-export default function CameraModal({ open = true, onClose }: { open?: boolean; onClose?: () => void }) {
+export default function CameraModal({ 
+  open = true, 
+  onClose,
+  onCapture 
+}: { 
+  open?: boolean; 
+  onClose?: () => void;
+  onCapture?: (media: string[]) => void;
+}) {
   const videoRef = useRef<HTMLVideoElement | null>(null);
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
   const [streamError, setStreamError] = useState<string | null>(null);
-  const [liveIndex, setLiveIndex] = useState<number>(7); // number overlay in the large square
-  const [thumbs, setThumbs] = useState<string[]>(Array(6).fill("")); // base64 images
+  const [liveIndex, setLiveIndex] = useState<number>(1); // number overlay in the large square
+  const [thumbs, setThumbs] = useState<string[]>([]); // base64 images (dynamic array)
   const [isStarting, setIsStarting] = useState<boolean>(false);
 
   useEffect(() => {
@@ -83,14 +91,36 @@ export default function CameraModal({ open = true, onClose }: { open?: boolean; 
     ctx.drawImage(video, sx, sy, size, size, 0, 0, size, size);
 
     const dataUrl = canvas.toDataURL("image/jpeg", 0.8);
-    setThumbs((prev) => [dataUrl, ...prev].slice(0, 6));
+    setThumbs((prev) => [dataUrl, ...prev]);
     setLiveIndex((n) => n + 1);
   };
 
   if (!open) return null;
 
+  const handleOverlayClick = (e: React.MouseEvent<HTMLDivElement>) => {
+    if (e.target === e.currentTarget && onClose) {
+      onClose();
+    }
+  };
+
+  const handleDone = () => {
+    if (onCapture && thumbs.length > 0) {
+      onCapture(thumbs);
+      setThumbs([]);
+      setLiveIndex(1);
+    }
+    if (onClose) {
+      onClose();
+    }
+  };
+
   return (
-    <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/50 p-4" role="dialog" aria-modal>
+    <div 
+      className="fixed inset-0 z-[60] flex items-center justify-center bg-black/50 p-4" 
+      role="dialog" 
+      aria-modal
+      onClick={handleOverlayClick}
+    >
       <div className="relative w-full max-w-3xl rounded-2xl bg-white p-5 shadow-2xl">
         {/* Header */}
         <div className="mb-4 flex items-center justify-between">
@@ -102,6 +132,14 @@ export default function CameraModal({ open = true, onClose }: { open?: boolean; 
             >
               Capture
             </button>
+            {thumbs.length > 0 && (
+              <button
+                onClick={handleDone}
+                className="rounded-xl bg-blue-600 text-white px-3 py-1.5 text-sm font-medium shadow-sm hover:bg-blue-700"
+              >
+                Use {thumbs.length} Photo{thumbs.length !== 1 ? 's' : ''}
+              </button>
+            )}
             <button
               onClick={onClose}
               className="rounded-xl border px-3 py-1.5 text-sm font-medium shadow-sm hover:bg-gray-50"
@@ -141,23 +179,22 @@ export default function CameraModal({ open = true, onClose }: { open?: boolean; 
             <p className="mx-auto text-sm text-gray-500">Starting camera…</p>
           )}
 
-          {/* Thumbnails row */}
-          <div className="mx-auto grid w-full max-w-[720px] grid-cols-6 gap-4">
-            {Array.from({ length: 6 }).map((_, i) => {
-              const src = thumbs[i];
-              const label = 6 - i; // numbers under thumbnails: 6..1
-              return (
-                <div key={i} className="flex flex-col items-center">
-                  <div className="aspect-square w-full rounded-xl border-2 border-gray-800/80 bg-gray-100">
-                    {src ? (
+          {/* Thumbnails row - dynamically shown */}
+          {thumbs.length > 0 && (
+            <div className="mx-auto grid w-full max-w-[720px] grid-cols-6 gap-4">
+              {thumbs.map((src, i) => {
+                const label = thumbs.length - i; // dynamic numbering based on count
+                return (
+                  <div key={i} className="flex flex-col items-center">
+                    <div className="aspect-square w-full rounded-xl border-2 border-gray-800/80 bg-gray-100">
                       <img src={src} alt={`thumb ${label}`} className="h-full w-full object-cover rounded-[10px]" />
-                    ) : null}
+                    </div>
+                    <div className="mt-1 text-sm font-medium text-gray-700">{label}</div>
                   </div>
-                  <div className="mt-1 text-sm font-medium text-gray-700">{label}</div>
-                </div>
-              );
-            })}
-          </div>
+                );
+              })}
+            </div>
+          )}
         </div>
       </div>
     </div>
